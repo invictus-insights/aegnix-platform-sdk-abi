@@ -6,7 +6,7 @@ It serves as the backbone for the **Agent Bridge Interface (ABI)** — the layer
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 aegnix_sdk/
@@ -69,7 +69,7 @@ aegnix_sdk/
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 You can run the full ABI SDK test suite with detailed debug logs:
 
