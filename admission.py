@@ -20,19 +20,32 @@ class AdmissionService:
         return b64e(nonce)
 
     def verify_response(self, ae_id: str, signed_nonce_b64: str):
+        """
+        Validate AE-signed challenge using canonical Ed25519 order.
+
+        Verifies:
+            ed25519_verify(pub_raw, sig_bytes, nonce_bytes)
+        """
         rec = self.keyring.get_key(ae_id)
         if not rec or rec.status != "trusted":
             return False, "untrusted"
+
         challenge = self.active_challenges.get(ae_id)
         if not challenge:
             return False, "no_active_challenge"
+
         nonce = challenge["nonce"]
-        pubkey = base64.b64decode(rec.pubkey_b64)
+        pub_raw = base64.b64decode(rec.pubkey_b64)
+        sig_bytes = base64.b64decode(signed_nonce_b64)
+
         try:
-            valid = ed25519_verify(pubkey, b64d(signed_nonce_b64), nonce)
+            # Canonical order: (pub_raw, sig, data)
+            valid = ed25519_verify(pub_raw, sig_bytes, nonce)
             if valid:
                 del self.active_challenges[ae_id]
-                return True, "verified"
+                return True, "Signature valid"
+            else:
+                return False, "Invalid signature"
         except Exception as e:
-            return False, str(e)
-        return False, "invalid"
+            return False, f"Verification error: {e}"
+
