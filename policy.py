@@ -19,11 +19,13 @@ class PolicyEngine:
 
     def can_publish(self, subject, ae_id):
         rule = self.rules.get(subject)
-        return True if not rule else ae_id in rule["pubs"]
+        # return True if not rule else ae_id in rule["pubs"]
+        return False if not rule else ae_id in rule["pubs"]
 
     def can_subscribe(self, subject, ae_id):
         rule = self.rules.get(subject)
-        return True if not rule else ae_id in rule["subs"]
+        # return True if not rule else ae_id in rule["subs"]
+        return False if not rule else ae_id in rule["subs"]
 
     def get_labels(self, subject):
         rule = self.rules.get(subject)

@@ -57,6 +57,8 @@ aegnix_sdk/
 
 ---
 
+
+
 ## Core Concepts
 
 | Module        | Responsibility                                                                    |
@@ -74,7 +76,8 @@ aegnix_sdk/
 You can run the full ABI SDK test suite with detailed debug logs:
 
 ```bash
-pytest -v -s --log-cli-level=DEBUG
+pytest -v -s --log-cli-level=DEBUG tests/test_abi_sdk.py
+
 ```
 
 Expected output:
@@ -88,30 +91,55 @@ collected 4 items
 
 tests/test_abi_sdk.py ....                                                                                                    [100%]
 
-================================================================ 4 passed in 0.23s ================================================================
+================================================================ 5 passed in 0.35s ================================================================
 ```
 
 ---
 
-## Definition of Done (Phase 1a)
+## Current Milestone: Phase 3E (v0.3.6)
 
-* [x] **ABI SDK Keyring** — CRUD operations verified
-* [x] **Admission Handshake** — Dual crypto validated
-* [x] **Policy Enforcement** — Subject access validated
-* [x] **Audit Logging** — Signed events written successfully
+All core ABI SDK modules stable:
+* [x] Dual-crypto admission handshake (`Signature valid`)
+* [x] Keyring + PolicyEngine verified
+* [x] AuditLogger file-based logging
+* [x] Full test suite passing (5/5)
+
+
+---
+
+## Definition of Done (Phase 3E)
+* [x] Keyring CRUD operations
+* [x] Dual-crypto admission handshake (Signature valid)
+* [x] Policy enforcement rules
+* [x] Signed audit logging
+* [x] Full unit test coverage
+* [ ] JWT token grants + `/emit` verification (Phase 3F)
 
 ---
 
 ## Next Steps
 
-**AE SDK**:
-
-* AEs register with the ABI via secure handshake
-* Signed envelopes are published/subscribed through GCP Pub/Sub
-* Local trust cache and decorators enable autonomous agent behavior
+Next: JWT issuance and verification (Phase 3F)
 
 ---
 
-**Author:** Invictus Insights R&D
-**Version:** 0.1.0
-**License:** Proprietary (pending patent filing)
+### ABI ↔ AE SDK Integration
+The ABI SDK now communicates with the **ABI Service** through the admission handshake and will integrate with its `/emit` and `/subscribe` endpoints in Phase 3F.
+
+This ensures consistent trust validation across AE client libraries and backend services.
+
+## Quick Example
+```python
+from aegnix_abi.keyring import ABIKeyring
+from aegnix_abi.admission import AdmissionService
+
+keyring = ABIKeyring("db/abi_state.db")
+svc = AdmissionService(keyring)
+nonce = svc.issue_challenge("fusion_ae")
+```
+
+
+
+**Author:** Invictus Insights R&D  
+**Version:** 0.3.6 (Phase 3E All Green)  
+**License:** Proprietary / Pending Patent Filing
