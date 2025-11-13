@@ -1,3 +1,4 @@
+import yaml
 """
 ABI SDK — Policy Engine
 Maps {subject -> allowed publishers/subscribers, labels}.
@@ -30,3 +31,19 @@ class PolicyEngine:
     def get_labels(self, subject):
         rule = self.rules.get(subject)
         return rule["labels"] if rule else set()
+
+    # Load Policy from YAML
+    @classmethod
+    def from_yaml(cls, path: str):
+        engine = cls()
+        with open(path, "r") as f:
+            data = yaml.safe_load(f)
+        for subject, conf in data.get("subjects", {}).items():
+            pubs = conf.get("pubs", [])
+            subs = conf.get("subs", [])
+            labels = conf.get("labels", [])
+            for p in pubs:
+                engine.allow(subject, publisher=p, labels=labels)
+            for s in subs:
+                engine.allow(subject, subscriber=s, labels=labels)
+        return engine
