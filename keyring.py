@@ -6,6 +6,7 @@ Manages AE public keys, trust state, and rotations.
 from aegnix_core.storage import SQLiteStorage, KeyRecord
 from aegnix_core.utils import now_ts
 
+
 class ABIKeyring:
     def __init__(self, db_path="abi_state.db"):
         self.store = SQLiteStorage(db_path)
@@ -40,3 +41,16 @@ class ABIKeyring:
     def list_keys(self):
         cur = self.store.db.execute("SELECT ae_id, pubkey_b64, roles, status, expires_at FROM keyring")
         return [dict(zip(["ae_id", "pubkey_b64", "roles", "status", "expires_at"], row)) for row in cur.fetchall()]
+
+    # trust elevation from ABI side only
+    def set_trusted(self, ae_id: str) -> bool:
+        rec = self.store.get_key(ae_id)
+        if not rec:
+            return False
+        if rec.status == "trusted":
+            return True  # idempotent
+
+        rec.status = "trusted"
+        self.store.upsert_key(rec)
+        self.store.log_event("key_trusted", {"ae_id": ae_id, "ts": now_ts()})
+        return True

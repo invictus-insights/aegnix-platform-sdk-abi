@@ -1,145 +1,196 @@
 # AEGNIX ABI SDK
 
-The **AEGNIX ABI SDK** provides the foundational components for managing secure swarm admission, keyring governance, policy enforcement, and signed audit logging within the AEGNIX ecosystem.
+The **AEGNIX ABI SDK** provides the foundational components for secure swarm admission, trust governance, dynamic policy enforcement, and signed audit logging within the **AEGNIX distributed agent mesh**.
 
-It serves as the backbone for the **Agent Bridge Interface (ABI)** — the layer that validates, authenticates, and authorizes Atomic Experts (AEs) to join and participate in the secure swarm communication mesh.
+This SDK represents the **developer‑facing half** of the Agent Bridge Interface (ABI) — enabling programmatic registration, verification, capability declaration, and authenticated emission from Atomic Experts (AEs) into the secure swarm.
 
 ---
 
-## Project Structure
+## 📦 Project Structure
 
 ```
 aegnix_sdk/
 ├── aegnix_abi/
 │   ├── __init__.py
-│   ├── admission.py        # Handles dual-crypto handshake (AE registration)
-│   ├── audit.py            # Writes signed audit events (file or Pub/Sub)
-│   ├── keyring.py          # Manage public keys for AEs (add, list, revoke)
-│   ├── policy.py           # Maps subjects to authorized publishers/subscribers
-│   └── transport_pubsub.py # Adapter for publishing audit events via Pub/Sub
+│   ├── admission.py        # Dual‑crypto challenge/response handshake
+│   ├── audit.py            # Structured, signed audit logger
+│   ├── keyring.py          # Trusted keyring (SQLite-backed)
+│   ├── policy.py           # Static + dynamic subject pub/sub rules
+│   └── transport_pubsub.py # Audit transport adapter
 ├── aegnix_ae/
-│   └── (coming soon)       # AE SDK modules
+│   ├── client.py           # AE registration + emit client
+│   └── transport/          # HTTP, Local, Pub/Sub transports
 └── tests/
-    ├── test_abi_sdk.py     # End-to-end ABI SDK unit tests
-    └── test_ae_sdk.py      # Placeholder for AE SDK tests
+    ├── test_abi_sdk.py     # Phase 3F ABI tests
+    └── test_ae_sdk.py      # AE SDK integration tests
 ```
 
 ---
 
-## Installation
+## 🚀 Installation
 
-1. **Ensure AEGNIX Core is installed locally:**
-
-   ```bash
-   cd ../aegnix_core
-   pip install -e .
-   ```
-
-2. **Install the ABI SDK (editable mode):**
-
-   ```bash
-   cd ../aegnix_sdk
-   pip install -e .
-   ```
-
-3. **Confirm successful installation:**
-
-   ```bash
-   pip list | grep aegnix
-   ```
-
-   You should see something like:
-
-   ```
-   aegnix-core 0.1.0
-   aegnix-sdk  0.1.0
-   ```
-
----
-
-
-
-## Core Concepts
-
-| Module        | Responsibility                                                                    |
-| ------------- | --------------------------------------------------------------------------------- |
-| **Keyring**   | Manage trusted AE keys (CRUD). Stored in SQLite by default.                       |
-| **Admission** | Handles the `who_is_there` dual-crypto handshake. Issues and verifies challenges. |
-| **Policy**    | Defines which subjects each AE can publish or subscribe to.                       |
-| **Audit**     | Writes signed audit envelopes to disk or a Pub/Sub topic.                         |
-| **Transport** | Adapter abstraction layer for different pub/sub backends (GCP, Kafka, NATS).      |
-
----
-
-## Running Tests
-
-You can run the full ABI SDK test suite with detailed debug logs:
+### 1. Install **aegnix_core**
 
 ```bash
-pytest -v -s --log-cli-level=DEBUG tests/test_abi_sdk.py
-
+cd ../aegnix_core
+pip install -e .
 ```
 
-Expected output:
+### 2. Install ABI SDK
 
-```
-================================================================ test session starts ================================================================
-platform win32 -- Python 3.11.x, pytest-8.x.x
-rootdir: E:\git\invictus_insights\platform\aegnix_sdk
-testpaths: tests
-collected 4 items
-
-tests/test_abi_sdk.py ....                                                                                                    [100%]
-
-================================================================ 5 passed in 0.35s ================================================================
+```bash
+cd ../aegnix_sdk
+pip install -e .
 ```
 
----
+### 3. Confirm installation
 
-## Current Milestone: Phase 3E (v0.3.6)
+```bash
+pip list | grep aegnix
+```
 
-All core ABI SDK modules stable:
-* [x] Dual-crypto admission handshake (`Signature valid`)
-* [x] Keyring + PolicyEngine verified
-* [x] AuditLogger file-based logging
-* [x] Full test suite passing (5/5)
+Should show:
 
-
----
-
-## Definition of Done (Phase 3E)
-* [x] Keyring CRUD operations
-* [x] Dual-crypto admission handshake (Signature valid)
-* [x] Policy enforcement rules
-* [x] Signed audit logging
-* [x] Full unit test coverage
-* [ ] JWT token grants + `/emit` verification (Phase 3F)
+```
+aegnix-core 0.3.x
+aegnix-sdk  0.3.x
+```
 
 ---
 
-## Next Steps
+## 🧠 Core Concepts
 
-Next: JWT issuance and verification (Phase 3F)
+| Module        | Role                                                                    |
+| ------------- | ----------------------------------------------------------------------- |
+| **Keyring**   | Stores AE public keys and trust states (untrusted → trusted).           |
+| **Admission** | Dual‑crypto handshake: nonce challenge + Ed25519 response verification. |
+| **Policy**    | Merges static YAML + dynamic capabilities for pub/sub authorization.    |
+| **Audit**     | Writes structured audit envelopes (file or Pub/Sub).                    |
+| **Transport** | Unified abstraction for HTTP, LocalBus, GCP Pub/Sub, NATS (future).     |
 
 ---
 
-### ABI ↔ AE SDK Integration
-The ABI SDK now communicates with the **ABI Service** through the admission handshake and will integrate with its `/emit` and `/subscribe` endpoints in Phase 3F.
+## 🧪 Running Full Test Suite
 
-This ensures consistent trust validation across AE client libraries and backend services.
+```bash
+pytest -v -s --log-cli-level=DEBUG tests/
+```
 
-## Quick Example
+Example output:
+
+```
+============================= test session starts =============================
+platform win32 -- Python 3.11.x
+collected 5 items
+
+tests/test_abi_sdk.py .....
+
+tests/test_ae_sdk.py ..
+============================== 7 passed in 0.42s =============================
+```
+
+---
+
+## 🌙 Current Milestone: **Phase 3F (v0.3.7)**
+
+The ABI SDK is now **fully aligned** with the ABI Service for Phase 3F:
+
+### ✔ Completed
+
+* Dual‑crypto admission handshake
+* Trusted keyring enforcement
+* Dynamic policy merge compatibility
+* AE capability declaration schema
+* AE client: registration → verify → JWT → emit
+* Local, HTTP, Pub/Sub transports
+* Full SDK test suite passing
+
+### 🔄 Remaining for Phase 3G
+
+* Capability‑driven dynamic policy injection
+* AE role fields (for future ABI governance)
+* Duplicate key protection
+
+---
+
+## 📡 ABI ↔ AE Registration Flow (PlantUML)
+
+```plantuml
+@startuml
+actor AE
+rectangle "ABI SDK" {
+  AE --> (Generate Keypair)
+  AE --> (POST /register)
+  (POST /register) --> ABI: "issue nonce"
+  ABI --> AE: nonce
+  AE --> (Sign nonce, send /verify)
+  (verify) --> ABI: ed25519_verify()
+  ABI --> AE: JWT session token
+}
+@enduml
+```
+
+---
+
+## 📤 Emit Flow via AE SDK (PlantUML)
+
+```plantuml
+@startuml
+actor AE
+rectangle "AE SDK" {
+  AE --> (Build Envelope)
+  (Build Envelope) --> (Sign with Ed25519)
+  (Sign with Ed25519) --> (POST /emit with JWT)
+}
+rectangle "ABI Service" {
+  (POST /emit with JWT) --> (Verify JWT)
+  (Verify JWT) --> (Policy Check)
+  (Policy Check) --> (Keyring Trust Check)
+  (Keyring Trust Check) --> (Verify Signature)
+  (Verify Signature) --> (Dispatch via Bus)
+}
+@enduml
+```
+
+---
+
+## 🧩 Example Usage
+
 ```python
 from aegnix_abi.keyring import ABIKeyring
 from aegnix_abi.admission import AdmissionService
 
+# Initialize
 keyring = ABIKeyring("db/abi_state.db")
-svc = AdmissionService(keyring)
-nonce = svc.issue_challenge("fusion_ae")
+admission = AdmissionService(keyring)
+
+# Issue challenge
+nonce_b64 = admission.issue_challenge("fusion_ae")
+
+# AE signs nonce and calls verify
+ok, msg = admission.verify_response("fusion_ae", sig_b64)
+print(ok, msg)
 ```
 
+---
 
+## 🗺 Roadmap
 
-**Author:** Invictus Insights R&D  
-**Version:** 0.3.6 (Phase 3E All Green)  
-**License:** Proprietary / Pending Patent Filing
+### **Phase 3G — Dynamic Policy Injection**
+
+* AE declares capabilities → ABI merges dynamic + static policy
+
+### **Phase 4 — Distributed Mesh**
+
+* Full Pub/Sub federation backend
+* JWT refresh tokens
+
+### **Phase 5 — Federated ABI Clusters**
+
+* Multi‑ABI trust domains with hierarchical governance
+
+---
+
+**Author:** Invictus Insights R&D
+**Version:** 0.3.7 (Phase 3F Verified)
+**License:** Proprietary — Patent Pending

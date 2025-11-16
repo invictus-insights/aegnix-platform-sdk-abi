@@ -1,12 +1,13 @@
+# aegnix_abi/admission.py
+
 """
 ABI SDK — Admission Service
 Implements the dual-crypto “Who’s There?” handshake.
 """
-
 import os, base64
-from aegnix_core.crypto import ed25519_verify, x25519_generate, derive_key
-from aegnix_core.utils import b64e, b64d, now_ts
-from aegnix_core.envelope import Envelope
+from aegnix_core.crypto import ed25519_verify
+from aegnix_core.utils import b64e,now_ts
+
 
 class AdmissionService:
     def __init__(self, keyring, challenge_ttl=300):
@@ -25,10 +26,18 @@ class AdmissionService:
 
         Verifies:
             ed25519_verify(pub_raw, sig_bytes, nonce_bytes)
+
+        Behavior (3G):
+            - AE must exist and not be revoked.
+            - If signature is valid:
+                * mark AE as trusted
+                * clear challenge
         """
         rec = self.keyring.get_key(ae_id)
-        if not rec or rec.status != "trusted":
-            return False, "untrusted"
+        if not rec:
+            return False, "unknown_ae"
+        if rec.status == "revoked":
+            return False, "revoked"
 
         challenge = self.active_challenges.get(ae_id)
         if not challenge:
@@ -38,7 +47,6 @@ class AdmissionService:
 
         # --- Safe base64 decoding for key and signature ---
         def safe_b64decode(data: str) -> bytes:
-            """Decode base64 safely even if missing padding."""
             data = data.strip()
             padding_needed = 4 - (len(data) % 4)
             if padding_needed and padding_needed != 4:
@@ -55,6 +63,8 @@ class AdmissionService:
         try:
             valid = ed25519_verify(pub_raw, sig_bytes, nonce)
             if valid:
+                # trust AE automatically on proof of private key
+                self.keyring.set_trusted(ae_id)
                 # Clean up challenge after success
                 del self.active_challenges[ae_id]
                 return True, "Signature valid"
