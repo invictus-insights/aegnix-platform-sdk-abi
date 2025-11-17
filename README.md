@@ -1,35 +1,89 @@
-# AEGNIX ABI SDK
+# AEGNIX ABI SDK (Phase 3F → 3G)
 
-The **AEGNIX ABI SDK** provides the foundational components for secure swarm admission, trust governance, dynamic policy enforcement, and signed audit logging within the **AEGNIX distributed agent mesh**.
+The **AEGNIX ABI SDK** is the developer-facing toolkit that allows **Atomic Experts (AEs)** to securely join, authenticate, publish, subscribe, and interact with the **AEGNIX Swarm Mesh**.
 
-This SDK represents the **developer‑facing half** of the Agent Bridge Interface (ABI) — enabling programmatic registration, verification, capability declaration, and authenticated emission from Atomic Experts (AEs) into the secure swarm.
+It implements:
+
+* Dual‑crypto admission (nonce challenge + Ed25519 verification)
+* Keyring trust synchronization
+* JWT session authentication
+* Verified & policy‑enforced emission
+* Capability declaration (Phase 3G)
+* The redesigned **PolicyContext** + policy evaluation engine
+* Signed audit logging
+
+This SDK is the **client half** of the ABI. The ABI Service is the authoritative enforcement layer; the ABI SDK is how AEs properly communicate with it.
 
 ---
 
-## 📦 Project Structure
+# What’s New in Phase 3G
+
+Phase 3G introduced the most significant update since Phase 3F:
+
+### **New `PolicyContext`**
+
+A strongly typed structure used by both ABI Service and ABI SDK to ensure consistent evaluation:
+
+* `subjects`: static policy
+* `ae_caps`: dynamic AE capabilities
+* `resolved`: merged effective policy
+
+### **Rewritten Policy Engine**
+
+The ABI SDK now mirrors ABI Service policy logic:
+
+* Deterministic merge of static + dynamic policy
+* Backward‑compatibility shim for legacy static policies
+* Unknown subject rejection
+* Role‑aware subscription checks (future‑proofed)
+
+### **Capability Declaration (Phase 3G)**
+
+AEs can now declare their publishes/subscribes list via:
+
+```python
+client.set_capabilities({
+  "publishes": ["fusion.topic"],
+  "subscribes": ["roe.result"]
+})
+```
+
+The JDWT is required and ABI Service syncs capabilities to SQLite.
+
+### ✅ **Updated Test Suite Alignment**
+
+The SDK now matches ABI Service behavior exactly across:
+
+* Verified emission
+* Signature validation
+* Dynamic capability merging
+* Authorization errors
+
+---
+
+# 📦 Project Structure
 
 ```
 aegnix_sdk/
 ├── aegnix_abi/
-│   ├── __init__.py
-│   ├── admission.py        # Dual‑crypto challenge/response handshake
-│   ├── audit.py            # Structured, signed audit logger
-│   ├── keyring.py          # Trusted keyring (SQLite-backed)
-│   ├── policy.py           # Static + dynamic subject pub/sub rules
-│   └── transport_pubsub.py # Audit transport adapter
+│   ├── admission.py         # Nonce challenge & verification
+│   ├── audit.py             # Signed audit envelopes
+│   ├── keyring.py           # Local trusted AE keyring
+│   ├── policy.py            # PolicyContext + merge engine
+│   └── transport_pubsub.py  # Audit transport adapter
 ├── aegnix_ae/
-│   ├── client.py           # AE registration + emit client
-│   └── transport/          # HTTP, Local, Pub/Sub transports
+│   ├── client.py            # Full AE client: register → JWT → emit
+│   └── transport/           # HTTP, Local bus, Pub/Sub transports
 └── tests/
-    ├── test_abi_sdk.py     # Phase 3F ABI tests
-    └── test_ae_sdk.py      # AE SDK integration tests
+    ├── test_abi_sdk.py      # ABI SDK policy & admission tests
+    └── test_ae_sdk.py       # AE integration tests
 ```
 
 ---
 
-## 🚀 Installation
+# Installation
 
-### 1. Install **aegnix_core**
+### 1. Install Core
 
 ```bash
 cd ../aegnix_core
@@ -43,13 +97,13 @@ cd ../aegnix_sdk
 pip install -e .
 ```
 
-### 3. Confirm installation
+### 3. Verify
 
 ```bash
 pip list | grep aegnix
 ```
 
-Should show:
+Expected:
 
 ```
 aegnix-core 0.3.x
@@ -58,139 +112,127 @@ aegnix-sdk  0.3.x
 
 ---
 
-## 🧠 Core Concepts
+# Core Responsibilities of ABI SDK
 
-| Module        | Role                                                                    |
-| ------------- | ----------------------------------------------------------------------- |
-| **Keyring**   | Stores AE public keys and trust states (untrusted → trusted).           |
-| **Admission** | Dual‑crypto handshake: nonce challenge + Ed25519 response verification. |
-| **Policy**    | Merges static YAML + dynamic capabilities for pub/sub authorization.    |
-| **Audit**     | Writes structured audit envelopes (file or Pub/Sub).                    |
-| **Transport** | Unified abstraction for HTTP, LocalBus, GCP Pub/Sub, NATS (future).     |
-
----
-
-## 🧪 Running Full Test Suite
-
-```bash
-pytest -v -s --log-cli-level=DEBUG tests/
-```
-
-Example output:
-
-```
-============================= test session starts =============================
-platform win32 -- Python 3.11.x
-collected 5 items
-
-tests/test_abi_sdk.py .....
-
-tests/test_ae_sdk.py ..
-============================== 7 passed in 0.42s =============================
-```
+| Component        | Purpose                                  |
+| ---------------- | ---------------------------------------- |
+| **admission.py** | Dual‑crypto verify + trust establishment |
+| **keyring.py**   | Local trusted public key store           |
+| **policy.py**    | Static+dynamic merged PolicyContext      |
+| **audit.py**     | Signed audit events                      |
+| **AE Client**    | Registration → JWT → Capabilities → Emit |
 
 ---
 
-## 🌙 Current Milestone: **Phase 3F (v0.3.7)**
+# Policy Engine Overview
 
-The ABI SDK is now **fully aligned** with the ABI Service for Phase 3F:
+The ABI SDK now uses the **same algorithm** as ABI Service.
 
-### ✔ Completed
+### Static Policy
 
-* Dual‑crypto admission handshake
-* Trusted keyring enforcement
-* Dynamic policy merge compatibility
-* AE capability declaration schema
-* AE client: registration → verify → JWT → emit
-* Local, HTTP, Pub/Sub transports
-* Full SDK test suite passing
+Loaded from ABI service via `/capabilities/effective`.
 
-### 🔄 Remaining for Phase 3G
+### Dynamic Capabilities
 
-* Capability‑driven dynamic policy injection
-* AE role fields (for future ABI governance)
-* Duplicate key protection
+Provided via AE client declaration.
 
----
+### Effective Policy
 
-## 📡 ABI ↔ AE Registration Flow (PlantUML)
+A deterministic merge:
 
-```plantuml
-@startuml
-actor AE
-rectangle "ABI SDK" {
-  AE --> (Generate Keypair)
-  AE --> (POST /register)
-  (POST /register) --> ABI: "issue nonce"
-  ABI --> AE: nonce
-  AE --> (Sign nonce, send /verify)
-  (verify) --> ABI: ed25519_verify()
-  ABI --> AE: JWT session token
-}
-@enduml
+```
+resolved[subject] = union(static[subject], dynamic_caps)
 ```
 
----
-
-## 📤 Emit Flow via AE SDK (PlantUML)
-
-```plantuml
-@startuml
-actor AE
-rectangle "AE SDK" {
-  AE --> (Build Envelope)
-  (Build Envelope) --> (Sign with Ed25519)
-  (Sign with Ed25519) --> (POST /emit with JWT)
-}
-rectangle "ABI Service" {
-  (POST /emit with JWT) --> (Verify JWT)
-  (Verify JWT) --> (Policy Check)
-  (Policy Check) --> (Keyring Trust Check)
-  (Keyring Trust Check) --> (Verify Signature)
-  (Verify Signature) --> (Dispatch via Bus)
-}
-@enduml
-```
-
----
-
-## 🧩 Example Usage
+### PolicyContext
 
 ```python
-from aegnix_abi.keyring import ABIKeyring
-from aegnix_abi.admission import AdmissionService
-
-# Initialize
-keyring = ABIKeyring("db/abi_state.db")
-admission = AdmissionService(keyring)
-
-# Issue challenge
-nonce_b64 = admission.issue_challenge("fusion_ae")
-
-# AE signs nonce and calls verify
-ok, msg = admission.verify_response("fusion_ae", sig_b64)
-print(ok, msg)
+@dataclass
+class PolicyContext:
+    subjects: dict   # static
+    ae_caps: list    # dynamic
+    resolved: dict   # merged
 ```
 
 ---
 
-## 🗺 Roadmap
+# Example AE Registration + Emit
 
-### **Phase 3G — Dynamic Policy Injection**
+```python
+from aegnix_ae.client import AEClient
 
-* AE declares capabilities → ABI merges dynamic + static policy
+client = AEClient(
+    ae_id="fusion_ae",
+    privkey_b64=privkey,
+    abi_url="http://localhost:8000"
+)
 
-### **Phase 4 — Distributed Mesh**
+# 1. Register → nonce → verify
+client.register()
+client.verify()
 
-* Full Pub/Sub federation backend
+# 2. Fetch JWT
+client.refresh_jwt()
+
+# 3. Declare capabilities
+client.set_capabilities({
+    "publishes": ["fusion.topic"],
+    "subscribes": ["roe.result"]
+})
+
+# 4. Send a verified emission
+resp = client.emit("fusion.topic", {"msg": "hello"})
+print(resp)
+```
+
+---
+
+# Tests
+
+Run all tests:
+
+```bash
+pytest -v -s --log-cli-level=DEBUG
+```
+
+Expected:
+
+```
+7 passed, 0 failed
+```
+
+---
+
+# 🗺 Roadmap
+
+### Phase 3F (Done)
+
+* Verified emission
+* Admission flow
+* Trusted keyring
+* Signing + JWT alignment
+
+### Phase 3G (Done)
+
+* Capability declaration
+* Dynamic policy merge
+* PolicyContext engine
+* Backward static policy compatibility
+* SSE subscription gating
+
+### Phase 4
+
 * JWT refresh tokens
+* Pub/Sub federation
+* Key rotation
 
-### **Phase 5 — Federated ABI Clusters**
+### Phase 5
 
-* Multi‑ABI trust domains with hierarchical governance
+* Federated ABI clusters
+* Multi-domain trust bridging
 
 ---
 
 **Author:** Invictus Insights R&D
-**Version:** 0.3.7 (Phase 3F Verified)
+**Version:** 0.3.8 (Phase 3 Complete)
 **License:** Proprietary — Patent Pending
