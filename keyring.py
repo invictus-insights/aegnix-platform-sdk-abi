@@ -54,3 +54,26 @@ class ABIKeyring:
         self.store.upsert_key(rec)
         self.store.log_event("key_trusted", {"ae_id": ae_id, "ts": now_ts()})
         return True
+
+    def set_roles(self, ae_id: str, roles: str) -> None:
+        """
+        Update roles for an AE identity.
+
+        Notes:
+            - roles is a simple comma-separated string (e.g. "producer,analytics")
+            - Keyring is the single source of truth for roles.
+            - Uses SQLiteStorage under self.store
+        """
+        cur = self.store.db.cursor()
+        cur.execute(
+            "UPDATE keyring SET roles = ? WHERE ae_id = ?",
+            (roles, ae_id)
+        )
+        self.store.db.commit()
+
+        # Optional audit line (consistent with keyring behavior)
+        self.store.log_event("key_roles_updated", {
+            "ae_id": ae_id,
+            "roles": roles,
+            "ts": now_ts()
+        })

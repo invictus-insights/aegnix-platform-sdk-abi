@@ -8,107 +8,111 @@ from aegnix_core.capabilities import AECapability
 
 
 class PolicyEngine:
-    """
-    Phase 3G — Dynamic Policy Engine
+    def __init__(self, static_policy: dict | None = None, ae_caps=None):
+        """
+        static_policy:
+            Parsed YAML dict containing:
+              - subjects: {...}
+              - roles: {...} (ignored in 3G)
+        """
+        self.static = static_policy or {}
+        self.subjects = self.static.get("subjects", {})
+        self.role_config = self.static.get("roles", {}) or {}
 
-    Combines:
-      1. Static policy (config/policy.yaml) — HARD FENCE
-      2. Dynamic AE capability declarations (SQLite)
-
-    Dynamic requests are ONLY allowed if they fit inside static policy.
-    """
-
-    def __init__(self, static_policy: Dict = None, ae_caps: List[AECapability] = None):
-        self.static_policy = static_policy or {}
         self.ae_caps = {c.ae_id: c for c in (ae_caps or [])}
+
+        # compatibility mode (used only by test suite via .allow())
+        self._compat = {"subjects": {}}
+
+        # Build effective policy IMMEDIATELY
         self.effective = self._build_effective_policy()
 
-    # ----------------------------------------------------------------------
-    # Build effective policy
-    # ----------------------------------------------------------------------
-    def _build_effective_policy(self) -> Dict:
-        """
-        Effective policy structure:
 
+    # ------------------------------------------------------------------
+    # BUILD EFFECTIVE POLICY
+    # ------------------------------------------------------------------
+    def _build_effective_policy(self):
+        """
+        Returns merged static + dynamic policy.
+
+        Output schema:
         {
-          "subjects": {
-            "fusion.topic": {
-              "pubs": set([...]),
-              "subs": set([...]),
-              "labels": set([...])
-            },
-            ...
-          }
+            "subjects": {
+                "fusion.topic": {
+                    "pubs": set([...]),
+                    "subs": set([...]),
+                    "labels": set([...])
+                },
+                ...
+            }
         }
         """
         eff = {"subjects": {}}
 
-        # -------------------------
-        # SEED FROM STATIC POLICY
-        # -------------------------
-        for subject, cfg in self.static_policy.get("subjects", {}).items():
+        # 1) Seed from static
+        for subject, cfg in self.subjects.items():
+            eff["subjects"][subject] = {
+                "pubs": set(cfg.get("pubs", [])),
+                "subs": set(cfg.get("subs", [])),
+                "labels": set(cfg.get("labels", [])),  # immutable
+            }
 
-            eff_subject = eff["subjects"].setdefault(
-                subject,
-                {"pubs": set(), "subs": set(), "labels": set()}
-            )
-
-            for p in cfg.get("pubs", []):
-                eff_subject["pubs"].add(p)
-
-            for s in cfg.get("subs", []):
-                eff_subject["subs"].add(s)
-
-            for lbl in cfg.get("labels", []):
-                eff_subject["labels"].add(lbl)
-
-        # -------------------------
-        # APPLY DYNAMIC CAPABILITIES
-        # -------------------------
+        # 2) Apply dynamic capabilities (3G rules)
         for ae_id, cap in self.ae_caps.items():
 
-            # Publication requests
+            # Dynamic publish enrichment
             for subject in cap.publishes:
                 if subject not in eff["subjects"]:
-                    # Not recognized → ignore silently
+                    # unknown subject → ignore silently
                     continue
 
-                # Allowed only if static policy already contains ae_id as publisher
-                static_publishers = self.static_policy["subjects"].get(subject, {}).get("pubs", [])
+                static_publishers = self.subjects.get(subject, {}).get("pubs", [])
                 if ae_id in static_publishers:
                     eff["subjects"][subject]["pubs"].add(ae_id)
 
-            # Subscription requests
+            # Dynamic subscribe enrichment
             for subject in cap.subscribes:
                 if subject not in eff["subjects"]:
                     continue
 
-                static_subscribers = self.static_policy["subjects"].get(subject, {}).get("subs", [])
+                static_subscribers = self.subjects.get(subject, {}).get("subs", [])
                 if ae_id in static_subscribers:
                     eff["subjects"][subject]["subs"].add(ae_id)
 
+        # 3) Compatibility entries from .allow()
+        for subject, cfg in self._compat["subjects"].items():
+            eff["subjects"].setdefault(subject, {
+                "pubs": set(),
+                "subs": set(),
+                "labels": set(),
+            })
+            eff["subjects"][subject]["pubs"].update(cfg.get("pubs", []))
+            eff["subjects"][subject]["subs"].update(cfg.get("subs", []))
+            eff["subjects"][subject]["labels"].update(cfg.get("labels", []))
+
         return eff
 
-    # ----------------------------------------------------------------------
-    # Permission Checks
-    # ----------------------------------------------------------------------
-    def can_publish(self, ae_id: str, subject: str) -> bool:
-        subject_cfg = self.effective["subjects"].get(subject)
-        if not subject_cfg:
-            return False
-        return ae_id in subject_cfg["pubs"]
 
-    def can_subscribe(self, ae_id: str, subject: str) -> bool:
-        subject_cfg = self.effective["subjects"].get(subject)
-        if not subject_cfg:
+    # ------------------------------------------------------------------
+    # ACCESSORS
+    # ------------------------------------------------------------------
+    def can_publish(self, ae_id: str, subject: str, roles=None):
+        cfg = self.effective["subjects"].get(subject)
+        if not cfg:
             return False
-        return ae_id in subject_cfg["subs"]
+        return ae_id in cfg["pubs"]
 
-    def get_subject_labels(self, subject: str) -> Set[str]:
-        subject_cfg = self.effective["subjects"].get(subject)
-        if not subject_cfg:
+    def can_subscribe(self, ae_id: str, subject: str, roles=None):
+        cfg = self.effective["subjects"].get(subject)
+        if not cfg:
+            return False
+        return ae_id in cfg["subs"]
+
+    def get_subject_labels(self, subject: str):
+        cfg = self.effective["subjects"].get(subject)
+        if not cfg:
             return set()
-        return set(subject_cfg["labels"])
+        return set(cfg["labels"])
 
     # ----------------------------------------------------------------------
     # TEST COMPATIBILITY SHIM (support Phase 3F)
@@ -130,15 +134,17 @@ class PolicyEngine:
     # ----------------------------------------------------------------------
     def allow(self, subject: str, publisher: str = None, subscriber: str = None, labels=None):
         """
-        Compatibility helper ONLY for Phase 3F test suite.
+        Test-only helper for 3F → 3G transition.
 
-        Allows tests to define synthetic policies without YAML or capabilities.
-        This does NOT affect the dynamic policy merge logic.
+        Allows tests to simulate policy rules without a YAML file
+        or capability declarations.
+
+        THIS WILL BE REMOVED IN PHASE 4A.
         """
-
-        # Ensure subject exists
-        eff = self.effective.setdefault("subjects", {})
-        subj = eff.setdefault(subject, {"pubs": set(), "subs": set(), "labels": set()})
+        subj = self.effective["subjects"].setdefault(
+            subject,
+            {"pubs": set(), "subs": set(), "labels": set()}
+        )
 
         if publisher:
             subj["pubs"].add(publisher)
@@ -149,61 +155,3 @@ class PolicyEngine:
         if labels:
             subj["labels"].update(labels)
 
-    # ----------------------------------------------------------------------
-    # YAML Loader (Static Policy)
-    # ----------------------------------------------------------------------
-    # @classmethod
-    # def from_yaml(cls, path: str, ae_caps: List[AECapability] = None):
-    #     with open(path, "r") as f:
-    #         static_policy = yaml.safe_load(f) or {}
-    #     return cls(static_policy, ae_caps or [])
-
-# import yaml
-# """
-# ABI SDK — Policy Engine
-# Maps {subject -> allowed publishers/subscribers, labels}.
-# In-memory for MVP; pluggable later.
-# """
-#
-# class PolicyEngine:
-#     def __init__(self):
-#         self.rules = {}
-#
-#     def allow(self, subject: str, publisher: str = None, subscriber: str = None, labels=None):
-#         self.rules.setdefault(subject, {"pubs": set(), "subs": set(), "labels": set()})
-#         if publisher:
-#             self.rules[subject]["pubs"].add(publisher)
-#         if subscriber:
-#             self.rules[subject]["subs"].add(subscriber)
-#         if labels:
-#             self.rules[subject]["labels"].update(labels)
-#
-#     def can_publish(self, subject, ae_id):
-#         rule = self.rules.get(subject)
-#         # return True if not rule else ae_id in rule["pubs"]
-#         return False if not rule else ae_id in rule["pubs"]
-#
-#     def can_subscribe(self, subject, ae_id):
-#         rule = self.rules.get(subject)
-#         # return True if not rule else ae_id in rule["subs"]
-#         return False if not rule else ae_id in rule["subs"]
-#
-#     def get_labels(self, subject):
-#         rule = self.rules.get(subject)
-#         return rule["labels"] if rule else set()
-#
-#     # Load Policy from YAML
-#     @classmethod
-#     def from_yaml(cls, path: str):
-#         engine = cls()
-#         with open(path, "r") as f:
-#             data = yaml.safe_load(f)
-#         for subject, conf in data.get("subjects", {}).items():
-#             pubs = conf.get("pubs", [])
-#             subs = conf.get("subs", [])
-#             labels = conf.get("labels", [])
-#             for p in pubs:
-#                 engine.allow(subject, publisher=p, labels=labels)
-#             for s in subs:
-#                 engine.allow(subject, subscriber=s, labels=labels)
-#         return engine
