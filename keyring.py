@@ -2,9 +2,11 @@
 ABI SDK — Keyring Management
 Manages AE public keys, trust state, and rotations.
 """
-
+from aegnix_core.crypto import compute_pubkey_fingerprint
 from aegnix_core.storage import SQLiteStorage, KeyRecord
 from aegnix_core.utils import now_ts
+
+
 
 
 class ABIKeyring:
@@ -13,20 +15,37 @@ class ABIKeyring:
 
     def add_key(self, ae_id: str, pubkey_b64: str, roles: str = "", status: str = "untrusted", expires_at=None):
         """
-       Add a new AE public key to the keyring.
+        Add or update an AE public key in the keyring.
 
-       Args:
-           ae_id: Unique identifier for the Atomic Expert.
-           pubkey_b64: Base64-encoded Ed25519 public key.
-           roles: Optional comma-separated roles.
-           status: Optional trust status ("trusted" or "untrusted").
-                   Defaults to "untrusted" for admin API compatibility.
-           expires_at: Optional expiration timestamp.
+        Args:
+            ae_id (str):
+                Unique identifier for the Atomic Expert.
+            pubkey_b64 (str):
+                Base64-encoded Ed25519 public key.
+            roles (str, optional):
+                Comma-separated role labels (e.g. "producer,analytics").
+            status (str, optional):
+                Trust state for the identity ("trusted", "untrusted", "pending").
+                Defaults to "untrusted".
+            expires_at (int, optional):
+                Optional expiration timestamp for the key.
 
-       Returns:
-           KeyRecord: The newly inserted key record.
+        Automatically Computes:
+            pub_key_fpr (str):
+                Stable fingerprint derived from the public key for identity binding.
+
+        Returns:
+            KeyRecord:
+                The stored keyring record.
         """
-        rec = KeyRecord(ae_id=ae_id, pubkey_b64=pubkey_b64, roles=roles, status=status, expires_at=expires_at)
+        pub_key_fpr = compute_pubkey_fingerprint(pubkey_b64)
+
+        rec = KeyRecord(ae_id=ae_id,
+                        pubkey_b64=pubkey_b64,
+                        roles=roles,
+                        status=status,
+                        expires_at=expires_at,
+                        pub_key_fpr=pub_key_fpr)
         self.store.upsert_key(rec)
         self.store.log_event("key_added", {"ae_id": ae_id, "status": status, "ts": now_ts()})
         return rec
