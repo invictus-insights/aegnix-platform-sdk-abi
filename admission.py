@@ -4,9 +4,9 @@
 ABI SDK — Admission Service
 Implements the dual-crypto “Who’s There?” handshake.
 """
-import os, base64
+import os
 from aegnix_core.crypto import ed25519_verify
-from aegnix_core.utils import b64e,now_ts
+from aegnix_core.utils import b64e, now_ts, b64d
 
 
 class AdmissionService:
@@ -51,11 +51,11 @@ class AdmissionService:
             padding_needed = 4 - (len(data) % 4)
             if padding_needed and padding_needed != 4:
                 data += "=" * padding_needed
-            return base64.b64decode(data)
+            return b64d(data)
 
         try:
-            pub_raw = safe_b64decode(rec.pubkey_b64)
-            sig_bytes = safe_b64decode(signed_nonce_b64)
+            pub_raw = b64d(rec.pubkey_b64)
+            sig_bytes = b64d(signed_nonce_b64)
         except Exception as e:
             return False, f"decode_error: {e}"
 

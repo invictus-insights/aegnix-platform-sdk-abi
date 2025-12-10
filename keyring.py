@@ -54,6 +54,34 @@ class ABIKeyring:
         self.store.revoke_key(ae_id)
         self.store.log_event("key_revoked", {"ae_id": ae_id, "ts": now_ts()})
 
+    def get_by_aeid(self, ae_id: str):
+        """Return the key record for a given AE ID."""
+        return self.store.get_key(ae_id)
+
+    def get_by_fpr(self, pub_key_fpr: str):
+        """Return key record by fingerprint (pub_key_fpr)."""
+        cur = self.store.db.execute(
+            "SELECT ae_id, pubkey_b64, roles, status, expires_at, pub_key_fpr "
+            "FROM keyring WHERE pub_key_fpr = ?",
+            (pub_key_fpr,)
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return KeyRecord(*row)
+
+    def get_by_pubkey(self, pubkey_b64: str):
+        """Return key record by exact public key (rarely used)."""
+        cur = self.store.db.execute(
+            "SELECT ae_id, pubkey_b64, roles, status, expires_at, pub_key_fpr "
+            "FROM keyring WHERE pubkey_b64 = ?",
+            (pubkey_b64,)
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return KeyRecord(*row)
+
     def get_key(self, ae_id: str):
         return self.store.get_key(ae_id)
 

@@ -6,7 +6,6 @@ Writes signed audit events locally or to a message bus.
 import json
 from aegnix_core.envelope import Envelope
 from aegnix_core.crypto import sign_envelope
-from aegnix_core.utils import now_ts
 
 class AuditLogger:
     def __init__(self, priv_key=None, key_id="abi-ed25519-1", file_path="abi_audit.log", transport=None):
