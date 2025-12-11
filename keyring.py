@@ -8,10 +8,12 @@ from aegnix_core.utils import now_ts
 
 
 
-
 class ABIKeyring:
-    def __init__(self, db_path="abi_state.db"):
-        self.store = SQLiteStorage(db_path)
+    def __init__(self, store):
+        self.store = store
+# class ABIKeyring:
+#     def __init__(self, db_path="abi_state.db"):
+#         self.store = SQLiteStorage(db_path)
 
     def add_key(self, ae_id: str, pubkey_b64: str, roles: str = "", status: str = "untrusted", expires_at=None):
         """
